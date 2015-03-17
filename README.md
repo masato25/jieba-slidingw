@@ -31,6 +31,7 @@ Require
 =========
 * 使用這個程式只需要安裝python 2.7 以上的版本.
 * 如果想使用gen_wddict.rb , 就另外需要安裝ruby
+* 原則上目前只支援UNIX 系統. Windows 沒有測試過.
 
 
 如何使用
