@@ -1,0 +1,71 @@
+#!/usr/bin/env python
+#coding=utf-8
+#this is a smple for cut words with mongodb
+import sys
+import os
+sys.path.append("./jieba")
+import jieba
+import jieba.analyse
+import json
+import sys
+import pymongo
+from pymongo import MongoClient
+import datetime
+import time
+from bson import json_util
+from bson import BSON
+import re
+
+
+def cleanhtmlcode(contain):
+  contain = re.sub(r'<a[\w\W]*?/a>', '  ', contain)
+  contain = re.sub(r'<span[\w\W]*?/span>', '', contain)
+  contain = re.sub(r'<div[\w\W]*?/div>', '', contain)
+  return contain
+
+def list_encode(words):
+  wlist = []
+  for w in words:
+    if isinstance(w, unicode):
+      wlist.append(w.encode("utf-8"))
+    else:
+      wlist.append(w)
+  return wlist
+
+jieba.set_dictionary('extra_dict/dict.txt.big')
+if os.path.isfile("result/dict/custom_word.wd"):
+    jieba.load_userdict("result/dict/custom_word.wd")
+
+#get data from mongodb
+client = MongoClient(os.getenv('mongodbip'), int(os.getenv('mongodbport')))
+client.pttdb.authenticate(os.getenv('railsmongoaccd'), os.getenv('railsmongopasswd'),)
+db = client['pttdb']
+coll = db['gossips']
+#db.gossip_done.ensureIndex( { url: 1 }, { unique: true } )
+outcoll = db['gossip1wds']
+date = sys.argv[1]
+print date
+if date == None:
+  print "you input wrong,please refer the example [ex. python thisscript.py 2015_01_01]"
+stime = int(time.mktime(datetime.datetime.strptime(date, "%Y_%m_%d").timetuple()))
+etime = stime + 86400 * 1
+f = open('result/json/' + date + '.json', 'w+')
+
+for post in coll.find({"tdate": {"$gt": stime, "$lt": etime}}):
+  contain = cleanhtmlcode(post['contain'])
+  #use the custom function of jieba
+  words = jieba.analyse.extract_tags_custom(contain.encode('utf8'), topK=10,detectedwdsavepath='result/newwd/' + date + ".wd")
+  #encode utf-8 per word
+  words = list_encode(words)
+  #insert the mongodb
+  post['body'] = words
+  post.pop("contain", None)
+  post.pop("_id", None)
+  try:
+    #insert result into mongodb
+    outcoll.insert(post)
+    #indent=4
+    js = json.dumps(post, sort_keys=True, default=json_util.default).decode('unicode-escape').encode('utf8')
+    f.write(js + "\n")
+  except pymongo.errors.DuplicateKeyError:
+    print 'alreay had key, skip it'
